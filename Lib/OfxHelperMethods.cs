@@ -34,6 +34,9 @@ namespace OfxSharpLib
                 var mm = Int32.Parse(date.Substring(4, 2));
                 var yyyy = Int32.Parse(date.Substring(0, 4));
 
+                if (dd == 0 || mm == 0 || yyyy == 0)
+                    return DateTime.Now.Date;
+
                 return new DateTime(yyyy, mm, dd);
             }
             catch
@@ -55,7 +58,7 @@ namespace OfxSharpLib
             fixedNode.Load(new StringReader(node.OuterXml));
 
             var tempNode = fixedNode.SelectSingleNode(xpath);
-            return tempNode != null ? tempNode.FirstChild.Value : "";
+            return tempNode != null && tempNode.FirstChild != null ? tempNode.FirstChild.Value : "";
         }
     }
 }
