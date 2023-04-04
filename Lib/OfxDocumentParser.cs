@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Xml;
+using System.Xml.Linq;
 using Sgml;
 
-namespace OfxSharpLib
+namespace OfxSharp
 {
     public class OfxDocumentParser
     {
@@ -27,64 +29,52 @@ namespace OfxSharpLib
             return ParseOfxDocument(ofx);
         }
 
+        public OfxDocument ImportFile(string fullfilename)
+        {
+            using (var stream = new FileStream(fullfilename, FileMode.Open))
+                return Import(stream);
+        }
+
         private OfxDocument ParseOfxDocument(string ofxString)
         {
+            string originalHeader = "";
+
             //If OFX file in SGML format, convert to XML
             if (!IsXmlVersion(ofxString))
             {
+                originalHeader = GetHeaderString(ofxString);
                 ofxString = SgmltoXml(ofxString);
             }
 
-            return Parse(ofxString);
+            return Parse(ofxString, originalHeader);
         }
 
-        private OfxDocument Parse(string ofxString)
+        private OfxDocument Parse(string ofxString, string originalHeader = "")
         {
-            var ofx = new OfxDocument { AccType = GetAccountType(ofxString) };
+            var ofx = new OfxDocument
+            {
+                AccType = GetAccountType(ofxString),
+                OriginalHeader = originalHeader,
+                Xml = new XmlDocument()
+            };
 
             //Load into xml document
-            var doc = new XmlDocument();
+            var doc = ofx.Xml;
             doc.Load(new StringReader(ofxString));
 
-            var currencyNode = doc.SelectSingleNode(GetXPath(ofx.AccType, OfxSection.Currency));
-
-            if (currencyNode != null)
-            {
-                ofx.Currency = currencyNode.FirstChild.Value;
-            }
-            else
-            {
-                throw new OfxParseException("Currency not found");
-            }
+            var currencyNode = doc.SelectSingleNode(GetXPath(ofx.AccType, OfxSection.Currency)) ?? throw new OfxParseException("Currency not found");
+            ofx.Currency = currencyNode.FirstChild.Value;
 
             //Get sign on node from OFX file
-            var signOnNode = doc.SelectSingleNode(Resources.SignOn);
-
-            //If exists, populate signon obj, else throw parse error
-            if (signOnNode != null)
-            {
-                ofx.SignOn = new SignOn(signOnNode);
-            }
-            else
-            {
-                throw new OfxParseException("Sign On information not found");
-            }
+            var signOnNode = doc.SelectSingleNode(Resources.SignOn) ?? throw new OfxParseException("Sign On information not found");
+            ofx.SignOn = new SignOn(signOnNode);
 
             //Get Account information for ofx xmlDocument
-            var accountNode = doc.SelectSingleNode(GetXPath(ofx.AccType, OfxSection.AccountInfo));
-
-            //If account info present, populate account object
-            if (accountNode != null)
-            {
-                ofx.Account = new Account(accountNode, ofx.AccType);
-            }
-            else
-            {
-                throw new OfxParseException("Account information not found");
-            }
+            var accountNode = doc.SelectSingleNode(GetXPath(ofx.AccType, OfxSection.AccountInfo)) ?? throw new OfxParseException("Account information not found");
+            ofx.Account = new Account(accountNode, ofx.AccType);
 
             //Get list of transactions
-            ImportTransations(ofx, doc);
+            ImportTransactions(ofx, doc);
 
             //Get balance info from ofx xmlDocument
             var ledgerNode = doc.SelectSingleNode(GetXPath(ofx.AccType, OfxSection.Balance) + "/LEDGERBAL");
@@ -92,15 +82,10 @@ namespace OfxSharpLib
 
             //If balance info present, populate balance object
             // ***** OFX files from my bank don't have the 'avaliableNode' node, so i manage a 'null' situation
-            if (ledgerNode != null) // && avaliableNode != null
-            {
-                ofx.Balance = new Balance(ledgerNode, avaliableNode);
-            }
-            else
-            {
+            if (ledgerNode == null) // && avaliableNode != null
                 throw new OfxParseException("Balance information not found");
-            }
 
+            ofx.Balance = new Balance(ledgerNode, avaliableNode);
             return ofx;
         }
 
@@ -152,23 +137,51 @@ namespace OfxSharpLib
         /// <param name="ofxDocument">OFX Document</param>
         /// <param name="xmlDocument">XML Document</param>
         /// <returns>List of transactions found in OFX document</returns>
-        private void ImportTransations(OfxDocument ofxDocument, XmlNode xmlDocument)
+        private void ImportTransactions(OfxDocument ofxDocument, XmlNode xmlDocument)
         {
             var xpath = GetXPath(ofxDocument.AccType, OfxSection.Transactions);
 
             ofxDocument.StatementStart = xmlDocument.GetValue(xpath + "//DTSTART").ToDate();
             ofxDocument.StatementEnd = xmlDocument.GetValue(xpath + "//DTEND").ToDate();
 
-            var transactionNodes = xmlDocument.SelectNodes(xpath + "//STMTTRN");
+            var transactionNodes = GetTransactionNodes(xmlDocument, xpath);
+
             ofxDocument.Transactions = new List<Transaction>();
 
             if (transactionNodes == null) return;
             foreach (XmlNode node in transactionNodes)
-            {
                 ofxDocument.Transactions.Add(new Transaction(node, ofxDocument.Currency));
-            }
         }
 
+        private static XmlNodeList GetTransactionNodes(XmlNode xmlDocument, string xpath)
+        {
+            return xmlDocument.SelectNodes(xpath + "//STMTTRN");
+        }
+
+        public OfxDocument RenameTransactions(OfxDocument ofxDocument, Dictionary<string,string> dictRename)
+        {
+            if ((!ofxDocument?.Transactions?.Any() ?? true) || ofxDocument.Xml == null || dictRename.Count == 0)
+                throw new ArgumentException("Parâmetros incorretos");
+
+            var xpath = GetXPath(ofxDocument.AccType, OfxSection.Transactions);
+            var transactionNodes = GetTransactionNodes(ofxDocument.Xml, xpath);
+            var descriptionNodes = transactionNodes[0].SelectNodes("//MEMO");
+
+            foreach (XmlNode node in descriptionNodes)
+            {
+                var key = node.InnerText;
+                if (!dictRename.TryGetValue(key, out string value))
+                    continue;
+
+                if (string.IsNullOrEmpty(value))
+                    continue;
+
+                node.InnerText = value;
+            }
+
+            ImportTransactions(ofxDocument, ofxDocument.Xml);
+            return ofxDocument;
+        }
 
         /// <summary>
         /// Checks account type of supplied file
@@ -199,13 +212,13 @@ namespace OfxSharpLib
         /// <summary>
         /// Converts SGML to XML
         /// </summary>
-        /// <param name="file">OFX File (SGML Format)</param>
+        /// <param name="ofxString">OFX File (SGML Format)</param>
         /// <returns>OFX File in XML format</returns>
-        private string SgmltoXml(string file)
+        private string SgmltoXml(string ofxString)
         {
             var reader = new SgmlReader
             {
-                InputStream = new StringReader(ParseHeader(file)),
+                InputStream = new StringReader(ParseHeader(ofxString)),
                 DocType = "OFX"
             };
 
@@ -228,21 +241,33 @@ namespace OfxSharpLib
         /// <summary>
         /// Checks that the file is supported by checking the header. Removes the header.
         /// </summary>
-        /// <param name="file">OFX file</param>
+        /// <param name="ofxString">OFX file</param>
         /// <returns>File, without the header</returns>
-        private string ParseHeader(string file)
+        private string ParseHeader(string ofxString)
         {
-            //Select header of file and split into array
-            //End of header worked out by finding first instance of '<'
-            //Array split based of new line & carrige return
-            var header = file.Substring(0, file.IndexOf('<'))
-               .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+            string[] header = GetHeader(ofxString);
 
             //Check that no errors in header
             CheckHeader(header);
 
             //Remove header
-            return file.Substring(file.IndexOf('<') - 1);
+            var result = ofxString.Substring(ofxString.IndexOf('<') - 1);
+            return result;
+        }
+
+        private static string[] GetHeader(string ofxString)
+        {
+            //Select header of file and split into array
+            //End of header worked out by finding first instance of '<'
+            //Array split based of new line & carrige return
+            return ofxString.Substring(0, ofxString.IndexOf('<'))
+                            .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+        }
+
+        private static string GetHeaderString(string ofxString)
+        {
+            var headerString = string.Join("\r\n", GetHeader(ofxString));
+            return headerString;
         }
 
         /// <summary>

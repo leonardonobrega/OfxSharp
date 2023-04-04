@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.Serialization;
 
-namespace OfxSharpLib
+namespace OfxSharp
 {
     [Serializable]
     public class OfxParseException : OfxException

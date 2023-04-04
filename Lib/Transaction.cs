@@ -2,7 +2,7 @@ using System;
 using System.Globalization;
 using System.Xml;
 
-namespace OfxSharpLib
+namespace OfxSharp
 {
    public class Transaction
    {
@@ -75,7 +75,7 @@ namespace OfxSharpLib
          //If Transaction Correction Action exists, populate
          var tempCorrectionAction = node.GetValue("//CORRECTACTION");
 
-         TransactionCorrectionAction = !String.IsNullOrEmpty(tempCorrectionAction)
+         TransactionCorrectionAction = !string.IsNullOrEmpty(tempCorrectionAction)
                                           ? GetTransactionCorrectionType(tempCorrectionAction)
                                           : TransactionCorrectionType.NA;
 

@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Xml;
 
-namespace OfxSharpLib
+namespace OfxSharp
 {
     public class OfxDocument
     {
@@ -20,5 +21,12 @@ namespace OfxSharpLib
         public Balance Balance { get; set; }
 
         public List<Transaction> Transactions { get; set; }
+        public string OriginalHeader { get; set; }
+        public XmlDocument Xml { get; set; }
+
+        public override string ToString()
+        {
+            return $"{OriginalHeader}{Environment.NewLine}{Xml?.OuterXml}";
+        }
     }
 }

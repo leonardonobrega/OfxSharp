@@ -1,7 +1,7 @@
 using System;
 using System.Xml;
 
-namespace OfxSharpLib
+namespace OfxSharp
 {
     public class Account
     {
