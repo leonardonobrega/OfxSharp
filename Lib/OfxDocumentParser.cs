@@ -288,10 +288,10 @@ namespace OfxSharp
             if (header[3] != "SECURITY:NONE")
                 throw new OfxParseException("OFX security unsupported");
 
-            if (header[4] != "ENCODING:USASCII")
+            if (header[4] != "ENCODING:USASCII" && header[4] != "ENCODING:UTF-8")
                 throw new OfxParseException("ASCII Format unsupported:" + header[4]);
 
-            if (header[5] != "CHARSET:1252")
+            if (header[5] != "CHARSET:1252" && header[5] != "CHARSET:NONE")
                 throw new OfxParseException("Charecter set unsupported:" + header[5]);
 
             if (header[6] != "COMPRESSION:NONE")
