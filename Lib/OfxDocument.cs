@@ -26,7 +26,7 @@ namespace OfxSharp
 
         public override string ToString()
         {
-            return $"{OriginalHeader}{Environment.NewLine}{Xml?.OuterXml}";
+            return $"{OriginalHeader}\n\n{Xml?.OuterXml}";
         }
     }
 }
