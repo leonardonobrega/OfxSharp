@@ -170,7 +170,11 @@ namespace OfxSharp
             foreach (XmlNode node in descriptionNodes)
             {
                 var key = node.InnerText;
-                if (!dictRename.TryGetValue(key, out string value))
+                var foundKey = dictRename.Keys.FirstOrDefault(dicKey => key.StartsWith(dicKey));
+                if (foundKey == null)
+                    continue;
+
+                if (!dictRename.TryGetValue(foundKey, out string value))
                     continue;
 
                 if (string.IsNullOrEmpty(value))
@@ -179,7 +183,8 @@ namespace OfxSharp
                 node.InnerText = value;
             }
 
-            ImportTransactions(ofxDocument, ofxDocument.Xml);
+            // TODO: Remover 28/04
+            // ImportTransactions(ofxDocument, ofxDocument.Xml);
             return ofxDocument;
         }
 
