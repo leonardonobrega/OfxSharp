@@ -183,8 +183,6 @@ namespace OfxSharp
                 node.InnerText = value;
             }
 
-            // TODO: Remover 28/04
-            // ImportTransactions(ofxDocument, ofxDocument.Xml);
             return ofxDocument;
         }
 

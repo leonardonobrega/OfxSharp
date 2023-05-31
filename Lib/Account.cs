@@ -79,12 +79,12 @@ namespace OfxSharp
 
         private void InitializeAP(XmlNode node)
         {
-            throw new OfxParseException("AP Account type not supported");
+            throw new OfxParseException($"AP Account type not supported {node}");
         }
 
         private void InitializeAR(XmlNode node)
         {
-            throw new OfxParseException("AR Account type not supported");
+            throw new OfxParseException($"AR Account type not supported {node}");
         }
 
         #endregion
